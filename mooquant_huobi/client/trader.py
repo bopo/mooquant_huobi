@@ -1,12 +1,13 @@
-from ApiKey import API_KEY, API_SECRET
-from hbsdk import ApiClient, ApiError
-from liveApi import liveLogger
-from liveApi.liveUtils import *
-from liveApi.TradeClientBase import *
+from mooquant_huobi.api.sdk import ApiClient
+from mooquant_huobi.common import *
+from mooquant_huobi.client.base import *
 from mooquant.utils import dt
+from mooquant import logger
 
-logger = liveLogger.getLiveLogger("hbClient")
+logger = logger.getLogger("huobi.livefeed")
 
+APIKEY = ''
+SECRET = ''
 
 def Str2float(func):
     def waper(*args, **kwargs):
@@ -93,7 +94,7 @@ class hbTradeAccountBalance(TradeAccountBalanceBase):
         return self.__obj['coin']
 
 
-class hbCoinType():
+class CoinType():
     def __init__(self, coin, cash):
         self.__coin = coin
         self.__cash = cash
@@ -134,10 +135,10 @@ class hbAccountBalance():
         return self.__coin
 
 
-class hbTradeClient(TradeClientBase):
+class Trader(TradeClientBase):
     def __init__(self, instrument):
         self.__coinType = instrument
-        self.__client = ApiClient(API_KEY, API_SECRET)
+        self.__client = ApiClient(APIKEY, SECRET)
         self.__accountid = self.getAccountId()
 
     @tryForever

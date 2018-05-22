@@ -14,7 +14,7 @@ import requests
 TIMEOUT = 5
 
 #API_HOST = 'be.mooquant_huobi.com'
-API_HOST = 'api.mooquant_huobi.pro'
+API_HOST = 'api.huobi.pro'
 
 SCHEME = 'https'
 

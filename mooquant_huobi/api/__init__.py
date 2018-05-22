@@ -18,40 +18,37 @@
 .. moduleauthor:: Gabriel Martin Becedillas Ruiz <gabriel.becedillas@gmail.com>
 """
 
-from hbsdk import ApiClient, ApiError
+from .sdk import ApiClient
+from mooquant import logger
+# from mooquant_huobi.common import *
 
-from . import liveLogger
-from .liveUtils import *
-
-logger = liveLogger.getLiveLogger("K-Line")
-
+logger = logger.getLogger("huobi.api")
 client = ApiClient('API_KEY', 'API_SECRET')
 
 
 def getKLineBar(identifier, endTimestamp, period, length=1):
-    logger.info(
-        'getKLine:%s %s %s %s' %
-        (identifier, endTimestamp, period, length))
+    logger.info('getKLine:{} {} {} {}'.format(identifier, endTimestamp, period, length))
+    
     length = length + 1 if length < 2000 else 2000
-
-    klines = client.mget(
-        '/market/history/kline',
-        symbol=identifier.getSymbol(),
-        period='%dmin' %
-        period,
-        size=length)
+    klines = client.mget('/market/history/kline', symbol=identifier.getSymbol(), period='%dmin' % period, size=length)
+    
     if len(klines) != length:
         return None
+    
     if timestamp() - endTimestamp > period * 60 + 30 and length < 100:
         del klines[1]
     else:
         del klines[0]
+    
     x = klines[0]
     f = timestamp_to_DateTimeLocal
+    
     logger.info('cur: %s recv: %s ecpect: %s eq: %s' %
                 (f(timestamp()), f(x.id), f(endTimestamp), endTimestamp == x.id))
+    
     if x.id < endTimestamp:
         return None
+
     if x.id > endTimestamp:
         klines[0].id = endTimestamp
         logger.info('fuck!')

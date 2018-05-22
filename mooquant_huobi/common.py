@@ -5,11 +5,10 @@ from datetime import datetime
 import pytz
 
 from mooquant.utils import dt
-
-from . import liveError
+from mooquant import logger
 
 localTz = pytz.timezone('Asia/Shanghai')
-
+logger = logger.getLogger("huobi.common")
 
 def timestamp():
     return int(time.time())
@@ -50,27 +49,10 @@ def tryForever(func):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                liveError.ErrorShow('traceback:%s' % traceback.format_exc())
-                liveError.ErrorShow('%s => %s' % (func.__name__, e.message))
+                logger.warning('traceback:{}'.format(traceback.format_exc()))
+                logger.warning('{} => {}'.format(func.__name__, e))
+                
                 time.sleep(1)
                 continue
+    
     return forever
-
-
-'''
-_eDict = {}
-def exceDebug(fn):
-    _eDict[fn] = True
-    def waper(*args, **kwargs):
-        __a = _eDict[fn]
-        _eDict[fn] = not __a
-        if __a is True:
-            raise Exception('Debug:%s'%fn.__name__)
-        print('')
-        print('')
-        print('==========success :: %s'%fn.__name__)
-        print('')
-        print('')
-        return fn(*args, **kwargs)
-    return waper
-'''

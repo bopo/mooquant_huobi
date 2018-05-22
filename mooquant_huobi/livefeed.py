@@ -23,18 +23,16 @@ import queue
 import threading
 import time
 
-from mooquant import bar, barfeed, dataseries, resamplebase
+from mooquant import bar, barfeed, dataseries, logger, resamplebase
 from mooquant.utils import dt
+from mooquant_huobi import api, common
 
-from . import commonApi as api
-from . import liveLogger, liveUtils
-
-logger = liveLogger.getLiveLogger("Barfeed")
+logger = logger.getLogger("huobi.livefeed")
 
 
 class liveBar(bar.BasicBar):
     def __init__(self, barDict, frequency):
-        self.__DateTimeLocal = liveUtils.timestamp_to_DateTimeLocal(
+        self.__DateTimeLocal = common.timestamp_to_DateTimeLocal(
             barDict["Timestamp"])
         super(
             liveBar,
@@ -62,9 +60,10 @@ class PollingThread(threading.Thread):
         # Wait until getNextCallDateTime checking for cancelation every 0.5
         # second.
         nextCall = self.getNextCallDateTime()
-#        nextCall = self.getNextCallDateTime() - datetime.timedelta(seconds=3600)
-        logger.info("----nextTime:%s" % liveUtils.utcToLocal(nextCall))
-        while not self.__stopped and liveUtils.utcnow() < nextCall:
+        # nextCall = self.getNextCallDateTime() - datetime.timedelta(seconds=3600)
+        logger.info("----nextTime:%s" % common.utcToLocal(nextCall))
+        
+        while not self.__stopped and common.utcnow() < nextCall:
             time.sleep(0.5)
 
     def stop(self):
@@ -76,15 +75,19 @@ class PollingThread(threading.Thread):
     def run(self):
         logger.debug("Thread started.")
         ret = True
+
         while not self.__stopped:
             if ret:
                 self.__wait()
+        
             if not self.__stopped:
                 ret = False
+
                 try:
                     ret = self.doCall()
                 except Exception as e:
                     logger.critical("Unhandled exception", exc_info=e)
+        
         logger.debug("Thread finished.")
 
     # Must return a non-naive datetime.
@@ -114,8 +117,8 @@ class GetBarThread(PollingThread):
             self.__precision = "Hours"
         else:
             raise Exception("Frequency must be less than bar.Frequency.DAY")
+        
         self.__period = frequency / bar.Frequency.MINUTE
-
         self.__queue = queue
         self.__identifiers = identifiers
         self.__frequency = frequency
@@ -126,7 +129,7 @@ class GetBarThread(PollingThread):
 
     def __updateNextBarClose(self):
         self.__nextBarClose = resamplebase.build_range(
-            liveUtils.utcnow(), self.__frequency).getEnding()
+            common.utcnow(), self.__frequency).getEnding()
 
     def getNextCallDateTime(self):
         return self.__nextBarClose + self.__apiCallDelay
@@ -145,9 +148,12 @@ class GetBarThread(PollingThread):
                 for indentifier in self.__identifiers:
                     response = api.getKLineBar(
                         indentifier, endTimestamp - self.__frequency * 2, self.__period, 100)
+                    
                     if response is None:
                         raise Exception("getKLineBar return None!")
+                    
                     dicts[indentifier] = response
+
                 break
             except BaseException:
                 time.sleep(1)
@@ -155,15 +161,19 @@ class GetBarThread(PollingThread):
 
         while not self.stopped():
             barDict = {}
+
             for indentifier in self.__identifiers:
                 response = dicts[indentifier]
+            
                 if len(response) == 0:
                     break
+            
                 barDict[indentifier] = liveBar(
                     response.pop(-1), self.__frequency)
 
             if len(barDict) == 0:
                 break
+            
             bars = bar.Bars(barDict)
             self.__queue.put((GetBarThread.ON_HISTORY_BARS, bars))
 
@@ -185,9 +195,12 @@ class GetBarThread(PollingThread):
 
         if len(barDict):
             bars = bar.Bars(barDict)
+        
             self.__queue.put((GetBarThread.ON_BARS, bars))
             self.__updateNextBarClose()
+        
             return True
+        
         return False
 
 
@@ -225,7 +238,9 @@ class LiveFeed(barfeed.BaseBarFeed):
             frequency,
             apiCallDelay=30,
             maxLen=dataseries.DEFAULT_MAX_LEN):
+        
         barfeed.BaseBarFeed.__init__(self, frequency, maxLen)
+        
         if not isinstance(identifiers, list):
             raise Exception("identifiers must be a list")
 
@@ -236,12 +251,11 @@ class LiveFeed(barfeed.BaseBarFeed):
             frequency,
             datetime.timedelta(
                 seconds=apiCallDelay))
+        
         self.__isHistory = True
+        
         for instrument in identifiers:
             self.registerInstrument(instrument)
-
-    ######################################################################
-    # observer.Subject interface
 
     def start(self):
         if self.__thread.is_alive():
@@ -267,7 +281,7 @@ class LiveFeed(barfeed.BaseBarFeed):
     # barfeed.BaseBarFeed interface
 
     def getCurrentDateTime(self):
-        return liveUtils.utcnow()
+        return common.utcnow()
 
     def barsHaveAdjClose(self):
         return False
@@ -277,18 +291,19 @@ class LiveFeed(barfeed.BaseBarFeed):
 
     def getNextBars(self):
         ret = None
+
         try:
             eventType, eventData = self.__queue.get(
                 True, LiveFeed.QUEUE_TIMEOUT)
+
             if eventType in (
                     GetBarThread.ON_BARS,
                     GetBarThread.ON_HISTORY_BARS):
                 self.__isHistory = eventType is GetBarThread.ON_HISTORY_BARS
                 ret = eventData
             else:
-                logger.error(
-                    "Invalid event received: %s - %s" %
-                    (eventType, eventData))
+                logger.error("Invalid event received: {} - {}".format(eventType, eventData))
         except queue.Empty:
             pass
+
         return ret
