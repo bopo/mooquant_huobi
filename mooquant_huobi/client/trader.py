@@ -4,7 +4,7 @@ from mooquant_huobi.client.base import *
 from mooquant.utils import dt
 from mooquant import logger
 
-logger = logger.getLogger("huobi.livefeed")
+logger = logger.getLogger("huobi.trader")
 
 APIKEY = ''
 SECRET = ''
